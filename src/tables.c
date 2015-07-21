@@ -44,13 +44,30 @@ void write_symbol(FILE* output, uint32_t addr, const char* name) {
    to store this value for use during add_to_table().
  */
 SymbolTable* create_table(int mode) {
-    /* YOUR CODE HERE */
-    return NULL;
+  SymbolTable* new_table = (SymbolTable *) malloc(sizeof(SymbolTable));
+  if (!new_table) {
+    allocation_failed();
+  }
+  new_table -> tbl = (Symbol *) malloc(INITIAL_SIZE * sizeof(Symbol));
+  if (!new_table -> tbl) {
+    allocation_failed();
+  }
+  new_table -> cap = INITIAL_SIZE;
+  new_table -> len = 0;
+  new_table -> mode = mode;
+  return new_table;
 }
 
 /* Frees the given SymbolTable and all associated memory. */
 void free_table(SymbolTable* table) {
-    /* YOUR CODE HERE */
+  // free symbol name;
+  for (int i = 0; i < table -> len; i++) {
+    free(table -> tbl[i].name);
+  }
+  // free symbol array
+  free(table -> tbl);
+  // free symbol table
+  free(table);
 }
 
 /* A suggested helper function for copying the contents of a string. */
@@ -62,6 +79,34 @@ static char* create_copy_of_str(const char* str) {
     }
     strncpy(buf, str, len); 
     return buf;
+}
+
+/* Checks if a Symbol with name NAME is already contained in the table, if yes, return the Symbol index in the Symbol table, otherwise return -1
+*/
+int get_symbol_pos(SymbolTable* table, const char* name) {
+  for (int i = 0; i < table -> len; i++) {
+    if (strcmp(name, table -> tbl[i].name) == 0) {
+      return i;
+    } 
+  }
+  return -1;
+}
+
+/* Checks if a new symbol is valid, including the alignment of the addr and uniqueness when mode is SYMTBL_UNIQUE_NAME. return 0 indicates success and -1 otherwise
+ */
+int is_valid_new_symbol(SymbolTable* table, const char* name, uint32_t addr) {
+  // is addr aligned
+  if (addr % 4 != 0) {
+    addr_alignment_incorrect();
+    return -1;
+  }
+  // is name already exist
+  if (table -> mode == SYMTBL_UNIQUE_NAME \
+      && get_symbol_pos(table, name) != -1) {
+    name_already_exists(name);
+    return -1;
+  } 
+  return 0;
 }
 
 /* Adds a new symbol and its address to the SymbolTable pointed to by TABLE. 
@@ -79,21 +124,40 @@ static char* create_copy_of_str(const char* str) {
    Otherwise, you should store the symbol name and address and return 0.
  */
 int add_to_table(SymbolTable* table, const char* name, uint32_t addr) {
-    /* YOUR CODE HERE */
+  if (is_valid_new_symbol(table, name, addr) == -1) {
     return -1;
+  }
+  if (table -> len == table -> cap) { // capacity is full
+    table -> cap = table -> cap * SCALING_FACTOR;
+    table -> tbl = (Symbol *) realloc(table -> tbl,			\
+				      table -> cap * sizeof(Symbol));
+    if (!table -> tbl) {
+      allocation_failed();
+      return -1;
+    }
+  }
+  table -> tbl[table -> len].name = create_copy_of_str(name);
+  table -> tbl[table -> len].addr = addr;
+  table -> len ++;
+  return 0;
 }
 
 /* Returns the address (byte offset) of the given symbol. If a symbol with name
    NAME is not present in TABLE, return -1.
  */
 int64_t get_addr_for_symbol(SymbolTable* table, const char* name) {
-    /* YOUR CODE HERE */ 
+  int i = get_symbol_pos(table, name);
+  if (i == -1) {
     return -1;
+  }
+  return table -> tbl[i].addr;
 }
 
 /* Writes the SymbolTable TABLE to OUTPUT. You should use write_symbol() to
    perform the write. Do not print any additional whitespace or characters.
  */
 void write_table(SymbolTable* table, FILE* output) {
-    /* YOUR CODE HERE */
+  for (int i = 0; i < table -> len; i++) {
+    write_symbol(output, table -> tbl[i].addr, table -> tbl[i].name);
+  }
 }

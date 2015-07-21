@@ -48,4 +48,8 @@ int64_t get_addr_for_symbol(SymbolTable* table, const char* name);
 /* IMPLEMENT ME - see documentation in tables.c */
 void write_table(SymbolTable* table, FILE* output);
 
+int is_valid_new_symbol(SymbolTable* table, const char* name, uint32_t addr);
+
+int get_symbol_pos(SymbolTable* table, const char* name);
+
 #endif

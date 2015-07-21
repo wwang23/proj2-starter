@@ -72,8 +72,8 @@ static void skip_comment(char* str) {
  */
 static int add_if_label(uint32_t input_line, char* str, uint32_t byte_offset,
     SymbolTable* symtbl) {
-    
     size_t len = strlen(str);
+
     if (str[len - 1] == ':') {
         str[len - 1] = '\0';
         if (is_valid_label(str)) {
@@ -152,20 +152,39 @@ int pass_one(FILE* input, FILE* output, SymbolTable* symtbl) {
 
         // Scan for the instruction name
     	char* token = strtok(buf, IGNORE_CHARS);
+	if (!token) {
+	  continue; // empty line, go to next line
+	}
+	
+        int rslt = add_if_label(input_line, token, byte_offset, symtbl);
+	if (rslt != 0) { // first token is a label, need to re-get inst
+	  if (rslt == -1) { // label failed
+	    ret_code = -1;
+	  }
+	  // scan for the instruction again
+	  token = strtok(NULL, IGNORE_CHARS);
+	}
 
+	if (!token) {
+	  continue; // label only line, go to next line
+	}
         // Scan for arguments
         char* args[MAX_ARGS];
         int num_args = 0;
-
+	int err = parse_args(input_line, args, &num_args);
+	if (err == -1) {
+	  ret_code = -1;
+	  continue; // extra-args, do not write to memory
+	}
     	// Checks to see if there were any errors when writing instructions
         unsigned int lines_written = write_pass_one(output, token, args, num_args);
         if (lines_written == 0) {
             raise_inst_error(input_line, token, args, num_args);
             ret_code = -1;
         } 
-        byte_offset += lines_written * 4;
+	byte_offset += lines_written * 4;
     }       
-    return -1;
+    return ret_code;
 }
 
 /* Reads an intermediate file and translates it into machine code. You may assume:
@@ -178,31 +197,38 @@ int pass_one(FILE* input, FILE* output, SymbolTable* symtbl) {
    If an error is reached, DO NOT EXIT the function. Keep translating the rest of
    the document, and at the end, return -1. Return 0 if no errors were encountered. */
 int pass_two(FILE *input, FILE* output, SymbolTable* symtbl, SymbolTable* reltbl) {
-    /* YOUR CODE HERE */
-
-    /* Since we pass this buffer to strtok(), the characters in this buffer will
-       GET CLOBBERED. */
+    /* Since we pass this buffer to strtok(), the characters in this buffer will GET CLOBBERED. */
     char buf[BUF_SIZE];
     // Store input line number / byte offset below. When should each be incremented?
-
-    // First, read the next line into a buffer.
-
+    uint32_t input_line = 0, byte_offset = 0;
+    int ret_code = 0;
+    // First, read the next line into a buffer.    
+    while (fgets(buf, BUF_SIZE, input))  {
     // Next, use strtok() to scan for next character. If there's nothing,
     // go to the next line.
-
-    // Parse for instruction arguments. You should use strtok() to tokenize
-    // the rest of the line. Extra arguments should be filtered out in pass_one(),
-    // so you don't need to worry about that here.
-    char* args[MAX_ARGS];
-    int num_args = 0;
-
-    // Use translate_inst() to translate the instruction and write to output file.
-    // If an error occurs, the instruction will not be written and you should call
-    // raise_inst_error(). 
-
-    // Repeat until no more characters are left, and the return the correct return val
-
-    return -1;
+      input_line++;
+      char* token = strtok(buf, IGNORE_CHARS);
+      //      if (token == NULL) {
+      //	continue;
+      //}
+      // Parse for instruction arguments. You should use strtok() to tokenize
+      // the rest of the line. Extra arguments should be filtered out in pass_one(),
+      // so you don't need to worry about that here.
+      char* args[MAX_ARGS];
+      int num_args = 0;
+      parse_args(input_line, args, &num_args);
+      // Use translate_inst() to translate the instruction and write to output file.
+      // If an error occurs, the instruction will not be written and you should call
+      // raise_inst_error(). 
+      int err = translate_inst(output, token, args, num_args, byte_offset, symtbl, reltbl);
+      if (err == -1) {
+	raise_inst_error(input_line, token, args, num_args);
+	ret_code = -1;
+      }
+      // Repeat until no more characters are left, and the return the correct return val
+      byte_offset += 4;
+    }
+    return ret_code;
 }
 
 /*******************************
